@@ -33,10 +33,6 @@ export class LinkedList {
     this.tail.next = undefined;
   }
 
-  isHead(node: Node) {
-    return this.head === node;
-  }
-
   get size() {
     return this.snakeSet.size;
   }

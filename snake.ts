@@ -18,6 +18,7 @@ function addSnakeToBoard(board: number[][], snake: LinkedList) {
   for (const {
     yx: [y, x],
   } of snake) {
+    console.log(y, x);
     board[y][x] = 1;
   }
   return board;
@@ -53,15 +54,20 @@ function diffBoard(prevBoard: number[][], board: number[][]) {
   }
   return changes;
 }
-function updateBoard(changes: Changes, board: number[][]) {
+function dispatchChanges(changes: Changes) {
   for (const [y, x, oldVal, newVal] of changes) {
-    board[y][x] = newVal;
     const cell = document.querySelector(`.cell-${y}-${x}`);
     console.log({ y, x, oldVal, newVal, cell });
     cell?.classList.remove(CellStyles[oldVal]);
     cell?.classList.add(CellStyles[newVal]);
   }
-  return board;
+}
+function setGrowthAndDecline(board: number[][]) {
+  const [growthY, growthX] = getRandomCell(board);
+  const [declineY, declineX] = getRandomCell(board);
+
+  board[growthY][growthX] = Cells.Growth;
+  board[declineY][declineX] = Cells.Decline;
 }
 
 const Directions = {
@@ -80,26 +86,87 @@ export class Board {
    */
   yx: YX;
 
+  rows: number;
+  cols: number;
+
   growth: YX;
   decline: YX;
 
   currDir: keyof typeof Directions = "ArrowRight";
 
+  timer: number;
+
   constructor(rows: number, cols: number) {
     this.board = createBoard(rows, cols);
     this.yx = [rows, cols];
+    this.rows = rows;
+    this.cols = cols;
   }
+  didCollide() {
+    const [headY, headX] = this.snake.head.yx;
 
-  tick() {}
+    return this.board[headY][headX] !== 0;
+  }
+  moveSnake() {
+    const [dirY, dirX] = Directions[this.currDir];
+    let prevY = this.snake.head.yx[0];
+    let prevX = this.snake.head.yx[1];
+
+    const nextHead: [number, number] = [prevY + dirY, prevX + dirX];
+
+    this.snake.head.yx = nextHead;
+
+    for (const node of this.snake) {
+      if (!(this.snake.head === node)) {
+        node.yx = [prevY, prevX];
+      }
+    }
+  }
+  gameOver() {
+    clearInterval(this.timer);
+  }
+  tick() {
+    this.moveSnake();
+    const [headY, headX] = this.snake.head.yx;
+    const headCell = this.board[headY]?.[headX];
+    if (headCell !== 0) {
+      if (headCell === Cells.Snake || headCell === undefined) {
+        console.log("game over");
+        this.gameOver();
+        return;
+        // gameover
+      } else if (headCell === Cells.Growth) {
+        //grow
+      } else {
+        // decline
+      }
+    }
+    const board = createBoard(this.rows, this.cols);
+
+    addSnakeToBoard(board, this.snake);
+    const diff = diffBoard(this.board, board);
+    dispatchChanges(diff);
+    this.board = board;
+  }
   init() {
     const [centerY, centerX] = centerOfBoard(this.yx[0], this.yx[1]);
     this.snake.push([centerY, centerX]);
     this.snake.push([centerY, centerX - 1]);
-    const newBoard = cloneBoard(this.board);
-    addSnakeToBoard(newBoard, this.snake);
-    console.log({ newBoard, snake: this.snake });
-    const changes = diffBoard(this.board, newBoard);
-    updateBoard(changes, this.board);
+    // this.tick();
+    const board = createBoard(this.rows, this.cols);
+    addSnakeToBoard(board, this.snake);
+    setGrowthAndDecline(board);
+    const diff = diffBoard(this.board, board);
+    dispatchChanges(diff);
+    this.board = board;
+    this.timer = setInterval(() => this.tick(), 1000);
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key in Directions) {
+        //@ts-ignore
+        this.currDir = e.key;
+      }
+    });
     // setGrowthDeclineCells(newBoard);
   }
 }
