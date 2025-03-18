@@ -14,24 +14,17 @@ export const CellStyles = {
   2: "growth",
   3: "decline",
 };
-function addSnakeToBoard(board: number[][], snake: LinkedList) {
-  for (const {
-    yx: [y, x],
-  } of snake) {
-    console.log(y, x);
+function addSnakeToBoard(board: number[][], snake: YX[]) {
+  for (const [y, x] of snake) {
     board[y][x] = 1;
   }
   return board;
 }
-function setGrowthDeclineCells(board: number[][]) {
-  const growth = getRandomCell(board);
-  const decline = getRandomCell(board);
-  // const { growth, decline } = this;
-  board[growth[0]][growth[1]] = Cells.Growth;
-  board[decline[0]][decline[1]] = Cells.Decline;
-  return [growth, decline];
-}
-function createBoard(rows: number, cols: number) {
+function createBoard(
+  rows: number,
+  cols: number,
+  values?: [number, number, number][]
+) {
   const board: number[][] = [];
   for (let i = 0; i < rows; i++) {
     const col: number[] = [];
@@ -39,6 +32,11 @@ function createBoard(rows: number, cols: number) {
       col.push(0);
     }
     board.push(col);
+  }
+  if (values) {
+    for (const [y, x, value] of values) {
+      board[y][x] = value;
+    }
   }
   return board;
 }
@@ -57,17 +55,15 @@ function diffBoard(prevBoard: number[][], board: number[][]) {
 function dispatchChanges(changes: Changes) {
   for (const [y, x, oldVal, newVal] of changes) {
     const cell = document.querySelector(`.cell-${y}-${x}`);
-    console.log({ y, x, oldVal, newVal, cell });
     cell?.classList.remove(CellStyles[oldVal]);
     cell?.classList.add(CellStyles[newVal]);
   }
 }
-function setGrowthAndDecline(board: number[][]) {
-  const [growthY, growthX] = getRandomCell(board);
-  const [declineY, declineX] = getRandomCell(board);
 
-  board[growthY][growthX] = Cells.Growth;
-  board[declineY][declineX] = Cells.Decline;
+function setRandomCell(board: number[][], value: number): YX {
+  const [y, x] = getRandomCell(board);
+  board[y][x] = value;
+  return [y, x];
 }
 
 const Directions = {
@@ -80,86 +76,103 @@ const Directions = {
 
 export class Board {
   board: number[][];
-  snake = new LinkedList();
-  /**
-   * Total length of board y = rows while x = cols
-   */
-  yx: YX;
+  snake: YX[] = [];
 
   rows: number;
   cols: number;
 
-  growth: YX;
-  decline: YX;
+  growth: YX = [-1, -1];
+  decline: YX = [-1, -1];
+
+  prevTail: YX = [-1, -1];
 
   currDir: keyof typeof Directions = "ArrowRight";
 
   timer: number;
 
+  createNewBoard: () => number[][];
+
   constructor(rows: number, cols: number) {
     this.board = createBoard(rows, cols);
-    this.yx = [rows, cols];
     this.rows = rows;
     this.cols = cols;
+    this.createNewBoard = () => createBoard(rows, cols);
   }
   didCollide() {
-    const [headY, headX] = this.snake.head.yx;
+    const [headY, headX] = this.snake[0];
 
     return this.board[headY][headX] !== 0;
   }
   moveSnake() {
     const [dirY, dirX] = Directions[this.currDir];
-    let prevY = this.snake.head.yx[0];
-    let prevX = this.snake.head.yx[1];
+    let [prevY, prevX] = this.snake[0];
 
     const nextHead: [number, number] = [prevY + dirY, prevX + dirX];
-
-    this.snake.head.yx = nextHead;
-
-    for (const node of this.snake) {
-      if (!(this.snake.head === node)) {
-        node.yx = [prevY, prevX];
-      }
+    for (let i = 1; i < this.snake.length; i++) {
+      this.snake[i] = [...this.snake[i - 1]];
     }
+    this.snake[0] = nextHead;
   }
   gameOver() {
     clearInterval(this.timer);
   }
+
   tick() {
-    this.moveSnake();
-    const [headY, headX] = this.snake.head.yx;
-    const headCell = this.board[headY]?.[headX];
-    if (headCell !== 0) {
-      if (headCell === Cells.Snake || headCell === undefined) {
-        console.log("game over");
+    const [dirY, dirX] = Directions[this.currDir];
+    const [nextY, nextX] = [this.snake[0][0] + dirY, this.snake[0][1] + dirX];
+    const nextHead = this.board[nextY][nextX];
+
+    const board = this.createNewBoard();
+
+    if (nextHead !== 0) {
+      if (nextHead === Cells.Snake || nextHead === undefined) {
         this.gameOver();
         return;
         // gameover
-      } else if (headCell === Cells.Growth) {
+      } else if (nextHead === Cells.Growth) {
         //grow
+        // this.snake.push(this.snake.);
+        this.moveSnake();
+        this.snake.push(this.prevTail);
+        addSnakeToBoard(board, this.snake);
+        this.growth = getRandomCell(board);
       } else {
+        console.log("decline");
         // decline
+        // this.snake.pop();
+        // addSnakeToBoard(board, this.snake);
+        // this.decline = getRandomCell(board);
       }
+    } else {
+      this.moveSnake();
+      this.prevTail = [...this.snake[this.snake.length - 1]];
+      addSnakeToBoard(board, this.snake);
     }
-    const board = createBoard(this.rows, this.cols);
-
-    addSnakeToBoard(board, this.snake);
+    board[this.growth[0]][this.growth[1]] = Cells.Growth;
+    board[this.decline[0]][this.decline[1]] = Cells.Decline;
+    console.log({ snake: this.snake });
     const diff = diffBoard(this.board, board);
     dispatchChanges(diff);
     this.board = board;
   }
   init() {
-    const [centerY, centerX] = centerOfBoard(this.yx[0], this.yx[1]);
+    const [centerY, centerX] = centerOfBoard(this.rows, this.cols);
     this.snake.push([centerY, centerX]);
     this.snake.push([centerY, centerX - 1]);
-    // this.tick();
+
     const board = createBoard(this.rows, this.cols);
     addSnakeToBoard(board, this.snake);
-    setGrowthAndDecline(board);
+
+    const growthCoords = setRandomCell(board, Cells.Growth);
+    const declineCoords = setRandomCell(board, Cells.Decline);
+
+    this.growth = growthCoords;
+    this.decline = declineCoords;
+
     const diff = diffBoard(this.board, board);
     dispatchChanges(diff);
     this.board = board;
-    this.timer = setInterval(() => this.tick(), 1000);
+    this.timer = setInterval(() => this.tick(), 2000);
 
     document.addEventListener("keydown", (e) => {
       if (e.key in Directions) {

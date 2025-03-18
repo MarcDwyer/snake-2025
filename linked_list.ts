@@ -19,11 +19,6 @@ export class LinkedList {
 
     this.snakeSet.add(`cell-${yx[0]}-${yx[1]}`);
   }
-
-  checkIfSnake([y, x]: YX) {
-    return this.snakeSet.has(`cell-${y}-${x}`);
-  }
-
   pop() {
     const newTail = this.tail.prev;
     if (!newTail) return undefined;

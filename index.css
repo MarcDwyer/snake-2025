@@ -42,3 +42,10 @@ body {
 .snake {
   background-color: green;
 }
+
+.growth {
+  background-color: greenyellow;
+}
+.decline {
+  background-color: red;
+}
